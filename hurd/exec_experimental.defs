@@ -1,5 +1,5 @@
 /* Interface definitions for the exec servers.
-   Copyright (C) 1991, 1992, 1993, 1994, 1995, 2001, 2010
+   Copyright (C) 1991, 1992, 1993, 1994, 1995, 2001, 2010, 2012
    Free Software Foundation, Inc.
 
 This file is part of the GNU Hurd.
@@ -20,7 +20,7 @@ the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.  */
 
 /* Written by Michael I. Bushnell and Roland McGrath.  */
 
-subsystem exec 30000;
+subsystem exec_experimental 434242;
 
 #include <hurd/hurd_types.defs>
 
@@ -30,12 +30,12 @@ EXEC_IMPORTS
 
 INTR_INTERFACE
 
-/* Deprecated: use exec_exec_file_name instead.  */
-routine exec_exec (
+routine exec_exec_file_name (
 	execserver: file_t;
 	file: mach_port_send_t;
 	oldtask: task_t;
 	flags: int;
+	filename: string_t;
 	argv: data_t SCP;
 	envp: data_t SCP;
 	dtable: portarray_t SCP;
@@ -44,16 +44,3 @@ routine exec_exec (
 	deallocnames: mach_port_name_array_t;
 	destroynames: mach_port_name_array_t);
 
-skip;				/* obsolete exec_startup */
-
-/* This call is made by the bootstrapping filesystem to give the
-   execserver its auth handle.  */
-routine exec_init (
-	execserver: file_t;
-	auth_handle: auth_t;
-	proc_server: mach_port_send_t);
-
-simpleroutine exec_setexecdata (
-	execserver: file_t;
-	ports: portarray_t SCP;
-	ints: intarray_t SCP);

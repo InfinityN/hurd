@@ -43,7 +43,7 @@ OTHERSRCS=demuxer.c protid-clean.c protid-dup.c cntl-create.c \
 
 SRCS=$(FSSRCS) $(IOSRCS) $(FSYSSRCS) $(OTHERSRCS)
 
-MIGSTUBS=fsServer.o ioServer.o fsysServer.o fsys_replyUser.o
+MIGSTUBS=fsServer.o fs_experimentalServer.o ioServer.o fsysServer.o fsys_replyUser.o
 
 libname = libtrivfs
 HURDLIBS = fshelp iohelp ports shouldbeinlibc

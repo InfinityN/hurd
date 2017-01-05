@@ -24,6 +24,7 @@
 #include <hurd.h>
 #include <fcntl.h>
 #include <hurd/trivfs.h>
+#include <hurd/paths.h>
 #include <sys/wait.h>
 #include <error.h>
 #include <argp.h>
@@ -242,6 +243,119 @@ stop_pgrp (process_t userproc, mach_port_t cttyid)
     munmap (pids, numpids);
 }
 
+void mach_print(const char *);
+
+#ifndef EXTERNAL_MACH_PRINT
+asm (".global mach_print;"
+     " mach_print:;"
+     " mov $0xffffffe2, %eax;"
+     " lcall $0x7, $0x0;"
+     " ret;");
+#endif /* EXTERNAL_MACH_PRINT */
+
+#include <mach/thread_status.h>
+
+error_t
+get_pcs (task_t task, char **pcs)
+{
+  error_t err;
+  thread_t *threads;
+  size_t i, nthreads;
+
+#ifdef i386_THREAD_STATE
+  struct i386_thread_state state;
+  mach_msg_type_number_t count = i386_THREAD_STATE_COUNT;
+  int flavor = i386_THREAD_STATE;
+
+  err = task_threads (task, &threads, &nthreads);
+  if (err)
+    return err;
+
+  *pcs = NULL;
+  for (i = 0; i < nthreads; i++)
+    {
+      char *old = *pcs;
+      err = thread_get_state (threads[i], flavor,
+                             (thread_state_t) &state, &count);
+      if (err)
+       return err;
+
+      if (old)
+       asprintf (pcs, "%s, 0x%x", old, state.eip);
+      else
+       asprintf (pcs, "0x%x", state.eip);
+
+      free (old);
+      err = mach_port_deallocate (mach_task_self (), threads[i]);
+      assert_perror (err);
+    }
+#else
+  *pcs = strdup ("architecture not supported");
+#endif
+  return 0;
+}
+
+error_t
+log_crash (task_t task,
+          int signo, integer_t sigcode, int sigerror,
+          natural_t exc, natural_t code, natural_t subcode,
+          enum crash_action how)
+{
+  error_t err;
+  pid_t pid;
+  char argz_buf[128], *argz = argz_buf;
+  size_t argz_len = sizeof argz;
+  char *msg;
+  char *how_msg;
+  char *pcs;
+
+  switch (how)
+    {
+    case crash_suspend:
+      how_msg = "suspending task";
+      break;
+    case crash_kill:
+      how_msg = "killing task";
+      break;
+    case crash_corefile:
+      how_msg = "writing core file";
+      break;
+    default:
+      assert (! "reached");
+    }
+
+  err = proc_task2pid (procserver, task, &pid);
+  if (err)
+    return err;
+
+  err = proc_getprocargs (procserver, pid, &argz, &argz_len);
+  if (err)
+    return err;
+
+  err = get_pcs (task, &pcs);
+  if (err)
+    return err;
+
+  argz_stringify (argz, argz_len, ' ');
+  asprintf (&msg, "%s: %s(%d) crashed, signal {no:%d, code:%d, error:%d}, "
+           "exception {%d, code:%d, subcode:%d}, PCs: {%s}, %s.\n",
+           _HURD_CRASH, argz, pid,
+           signo, sigcode, sigerror,
+           exc, code, subcode,
+           pcs,
+           how_msg);
+  if (argz != argz_buf)
+    vm_deallocate (mach_task_self (), argz, argz_len);
+  free (pcs);
+  if (! msg)
+    return ENOMEM;
+
+  fprintf (stderr, "%s", msg);
+  mach_print (msg);
+  free (msg);
+
+  return 0;
+}
 
 kern_return_t
 S_crash_dump_task (mach_port_t port,
@@ -274,6 +388,8 @@ S_crash_dump_task (mach_port_t port,
 	    how = crash_orphans_how;
 	}
     }
+
+  log_crash (task, signo, sigcode, sigerror, exc, code, subcode, how);
 
   switch (how)
     {

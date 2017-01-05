@@ -58,7 +58,14 @@ _ports_bucket_class_iterate (struct hurd_ihash *ht,
 
       if (class == 0 || pi->class == class)
 	{
-	  refcounts_ref (&pi->refcounts, NULL);
+	  struct references result;
+	  refcounts_unsafe_ref (&pi->refcounts, &result);
+	  if (result.hard == 1 && result.weak == 0)
+	  {
+	    /* This one is on its way out, skip it.  */
+	    refcounts_deref (&pi->refcounts, NULL);
+	    continue;
+	  }
 	  p[n] = pi;
 	  n++;
 	}

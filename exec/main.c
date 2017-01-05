@@ -49,6 +49,7 @@ mach_port_t opt_device_master;
 
 
 #include "exec_S.h"
+#include "exec_experimental_S.h"
 #include "exec_startup_S.h"
 
 static int
@@ -56,6 +57,7 @@ exec_demuxer (mach_msg_header_t *inp, mach_msg_header_t *outp)
 {
   mig_routine_t routine;
   if ((routine = exec_server_routine (inp)) ||
+      (routine = exec_experimental_server_routine (inp)) ||
       (routine = NULL, trivfs_demuxer (inp, outp)) ||
       (routine = exec_startup_server_routine (inp)))
     {

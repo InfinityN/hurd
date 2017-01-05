@@ -11,7 +11,7 @@
 ### Where to find programs, etc.
 ###
 
-PATH=/bin:/sbin
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export PATH
 
 umask 022

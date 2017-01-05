@@ -1,6 +1,5 @@
-/* Interface definitions for the exec servers.
-   Copyright (C) 1991, 1992, 1993, 1994, 1995, 2001, 2010
-   Free Software Foundation, Inc.
+/* Definitions for the filesystem interface.
+   Copyright (C) 1994,95,96,97,98,99,2002 Free Software Foundation, Inc.
 
 This file is part of the GNU Hurd.
 
@@ -18,42 +17,35 @@ You should have received a copy of the GNU General Public License
 along with the GNU Hurd; see the file COPYING.  If not, write to
 the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.  */
 
-/* Written by Michael I. Bushnell and Roland McGrath.  */
 
-subsystem exec 30000;
+/* All these objects also implement the generic IO facilities. */
+
+subsystem fs_experimental 444242;
 
 #include <hurd/hurd_types.defs>
 
-#ifdef EXEC_IMPORTS
-EXEC_IMPORTS
+#ifdef FILE_IMPORTS
+FILE_IMPORTS
 #endif
+
+/* Operations supported on all files */
 
 INTR_INTERFACE
 
-/* Deprecated: use exec_exec_file_name instead.  */
-routine exec_exec (
-	execserver: file_t;
-	file: mach_port_send_t;
-	oldtask: task_t;
+/* Overlay a task with a file.  Necessary initialization, including
+   authentication changes associated with set[ug]id execution must be
+   handled by the filesystem.  Filesystems normally implement this by
+   using exec_newtask or exec_loadtask as appropriate.  */
+routine file_exec_file_name (
+	exec_file: file_t;
+	RPT
+	exec_task: task_t;
 	flags: int;
+	filename: string_t;
 	argv: data_t SCP;
 	envp: data_t SCP;
-	dtable: portarray_t SCP;
+	fdarray: portarray_t SCP;
 	portarray: portarray_t SCP;
 	intarray: intarray_t SCP;
-	deallocnames: mach_port_name_array_t;
-	destroynames: mach_port_name_array_t);
-
-skip;				/* obsolete exec_startup */
-
-/* This call is made by the bootstrapping filesystem to give the
-   execserver its auth handle.  */
-routine exec_init (
-	execserver: file_t;
-	auth_handle: auth_t;
-	proc_server: mach_port_send_t);
-
-simpleroutine exec_setexecdata (
-	execserver: file_t;
-	ports: portarray_t SCP;
-	ints: intarray_t SCP);
+	deallocnames: mach_port_name_array_t SCP;
+	destroynames: mach_port_name_array_t SCP);

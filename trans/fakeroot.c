@@ -28,10 +28,14 @@
 #include <pthread.h>
 #include <hurd/ihash.h>
 #include <hurd/paths.h>
+#ifdef HAVE_FILE_EXEC_FILE_NAME
+#include <hurd/fs_experimental.h>
+#endif
 
 #include <version.h>
 
 #include "libnetfs/fs_S.h"
+#include "libnetfs/fs_experimental_S.h"
 #include "libnetfs/io_S.h"
 #include "libnetfs/fsys_S.h"
 #include "libports/notify_S.h"
@@ -824,23 +828,24 @@ netfs_file_get_storage_info (struct iouser *cred,
 }
 
 kern_return_t
-netfs_S_file_exec (struct protid *user,
-                   task_t task,
-                   int flags,
-                   char *argv,
-                   size_t argvlen,
-                   char *envp,
-                   size_t envplen,
-                   mach_port_t *fds,
-                   size_t fdslen,
-                   mach_port_t *portarray,
-                   size_t portarraylen,
-                   int *intarray,
-                   size_t intarraylen,
-                   mach_port_t *deallocnames,
-                   size_t deallocnameslen,
-                   mach_port_t *destroynames,
-                   size_t destroynameslen)
+netfs_S_file_exec_file_name (struct protid *user,
+			     task_t task,
+			     int flags,
+			     char *filename,
+			     char *argv,
+			     size_t argvlen,
+			     char *envp,
+			     size_t envplen,
+			     mach_port_t *fds,
+			     size_t fdslen,
+			     mach_port_t *portarray,
+			     size_t portarraylen,
+			     int *intarray,
+			     size_t intarraylen,
+			     mach_port_t *deallocnames,
+			     size_t deallocnameslen,
+			     mach_port_t *destroynames,
+			     size_t destroynameslen)
 {
   error_t err;
   file_t file;
@@ -859,14 +864,30 @@ netfs_S_file_exec (struct protid *user,
 
   if (!err)
     {
+#ifdef HAVE_FILE_EXEC_FILE_NAME
       /* We cannot use MACH_MSG_TYPE_MOVE_SEND because we might need to
 	 retry an interrupted call that would have consumed the rights.  */
-      err = file_exec (netfs_node_netnode (user->po->np)->file,
-		       task, flags, argv, argvlen,
-		       envp, envplen, fds, MACH_MSG_TYPE_COPY_SEND, fdslen,
-		       portarray, MACH_MSG_TYPE_COPY_SEND, portarraylen,
-		       intarray, intarraylen, deallocnames, deallocnameslen,
-		       destroynames, destroynameslen);
+      err = file_exec_file_name (netfs_node_netnode (user->po->np)->file,
+				 task, flags,
+				 filename,
+				 argv, argvlen,
+				 envp, envplen,
+				 fds, MACH_MSG_TYPE_COPY_SEND, fdslen,
+				 portarray, MACH_MSG_TYPE_COPY_SEND,
+				 portarraylen,
+				 intarray, intarraylen,
+				 deallocnames, deallocnameslen,
+				 destroynames, destroynameslen);
+      /* For backwards compatibility.  Just drop it when we kill
+	 file_exec.  */
+      if (err == MIG_BAD_ID)
+#endif
+	err = file_exec (user->po->np->nn->file, task, flags, argv, argvlen,
+			 envp, envplen, fds, MACH_MSG_TYPE_COPY_SEND, fdslen,
+			 portarray, MACH_MSG_TYPE_COPY_SEND, portarraylen,
+			 intarray, intarraylen, deallocnames, deallocnameslen,
+			 destroynames, destroynameslen);
+
       mach_port_deallocate (mach_task_self (), file);
     }
 
@@ -880,6 +901,38 @@ netfs_S_file_exec (struct protid *user,
 	mach_port_deallocate (mach_task_self (), portarray[i]);
     }
   return err;
+}
+
+kern_return_t
+netfs_S_file_exec (struct protid *user,
+                   task_t task,
+                   int flags,
+                   char *argv,
+                   size_t argvlen,
+                   char *envp,
+                   size_t envplen,
+                   mach_port_t *fds,
+                   size_t fdslen,
+                   mach_port_t *portarray,
+                   size_t portarraylen,
+                   int *intarray,
+                   size_t intarraylen,
+                   mach_port_t *deallocnames,
+                   size_t deallocnameslen,
+                   mach_port_t *destroynames,
+                   size_t destroynameslen)
+{
+  return netfs_S_file_exec_file_name (user,
+				      task,
+				      flags,
+				      "",
+				      argv, argvlen,
+				      envp, envplen,
+				      fds, fdslen,
+				      portarray, portarraylen,
+				      intarray, intarraylen,
+				      deallocnames, deallocnameslen,
+				      destroynames, destroynameslen);
 }
 
 error_t
@@ -998,6 +1051,7 @@ netfs_demuxer (mach_msg_header_t *inp,
   mig_routine_t routine;
   if ((routine = netfs_io_server_routine (inp)) ||
       (routine = netfs_fs_server_routine (inp)) ||
+      (routine = netfs_fs_experimental_server_routine (inp)) ||
       (routine = ports_notify_server_routine (inp)) ||
       (routine = netfs_fsys_server_routine (inp)) ||
       /* XXX we should intercept interrupt_operation and do

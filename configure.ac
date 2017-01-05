@@ -162,6 +162,8 @@ else
   VERSIONING=no
 fi
 AC_SUBST(VERSIONING)
+# Check if libc contains these functions.
+AC_CHECK_FUNCS(file_exec_file_name exec_exec_file_name _hurd_exec_file_name)
 
 
 # From glibc HEAD, 2007-11-07.

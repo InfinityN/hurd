@@ -294,6 +294,9 @@ int main (int argc, char **argv)
   opt_stat_mode = OPT_STAT_MODE;
   opt_kernel_pid = OPT_KERNEL_PID;
   opt_anon_owner = OPT_ANON_OWNER;
+
+  set_compatibility_options ();
+
   err = argp_parse (&argp, argc, argv, 0, 0, 0);
   if (err)
     error (1, err, "Could not parse command line");
